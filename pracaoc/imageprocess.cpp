@@ -204,10 +204,10 @@ void imageprocess::calculoGradientes(unsigned char* imagen, Gradient* gradientes
                 "mov %0, %%rsi;"
                 "mov %1, %%rdi;"
 
-                "mov $0, %%ecx;"
-                "calculoGradientesXLoop:"
-                    "mov $0, %%ebx;"
-                    "calculoGradientesYLoop:"
+                "mov $0, %%ebx;"
+                "calculoGradientesYLoop:"
+                    "mov $0, %%ecx;"
+                    "calculoGradientesXLoop:"
                         "mov %4, %%r8;" // sobel_x
                         "mov %5, %%r9;" // sobel_y
                         "mov $0, %%r10;" // gradX
@@ -218,26 +218,46 @@ void imageprocess::calculoGradientes(unsigned char* imagen, Gradient* gradientes
                             "mov $-1, %%r13d;"
                             "calculoGradientesILoop:" // Loop i
                             // Si((x+i)>=0 y (x+i)<W y (y+j)>=0 y (y+j)<H)
-                                "mov %%ecx, %%eax;"
-                                "add %%r13d, %%eax;"
-                                "cmp $0, %%eax;" // (x+1) >= 0
+                                "mov $0, %%r14;"
+                                "mov %%ecx, %%r14d;"
+                                "add %%r13d, %%r14d;"
+                                "cmp $0, %%r14d;" // ! (x+i) >= 0
                                 "jb calculoGradientesILoopFin;"
 
-                                "cmp %2, %%eax;" // (x+i) < W
+                                "cmp %2, %%r14d;" // ! (x+i) < W
                                 "jae calculoGradientesILoopFin;"
 
-                                "mov %%ebx, %%edx;"
-                                "add %%r12d, %%edx;"
-                                "cmp $0, %%rdx;" // (y+j) >= 0
+                                "mov $0, %%rax;"
+                                "mov %%ebx, %%eax;"
+                                "add %%r12d, %%eax;"
+                                "cmp $0, %%eax;" // ! (y+j) >= 0
                                 "jb calculoGradientesILoopFin;"
 
-                                "cmp %2, %%rdx;"
+                                "cmp %2, %%eax;" // ! (y+j) < H
                                 "jae calculoGradientesILoopFin;"
 
-                                // Contenido del If
+                                // If content
+                                "mov $0, %%rdx;"
+                                "mulw %2;" // (y + j) * W
+                                /*"shl $16, %%rdx;" // Move DX to upper registry on RDX
+                                "add %%rdx, %%rax;" // Move DX:AX to RAX */
+                                "add %%eax, %%r14d;" // offsetPixel
 
+                                // Calculate gradX and gradY
+                                "mov $0, %%rax;"
+                                "movb (%%r14, %%rsi), %%al;"
+                                "mulw (%%r8);"
+                                "add %%eax, %%r10d;"
+
+                                "mov $0, %%rax;"
+                                "movb (%%r14, %%rsi), %%al;"
+                                "mulw (%%r9);"
+                                "add %%eax, %%r11d;"
 
                                 "calculoGradientesILoopFin:"
+                                "add $4, %%r8;"
+                                "add $4, %%r9;"
+
                                 "inc %%r13d;"
                                 "cmp $1, %%r13d;"
                                 "jle calculoGradientesILoop;"
@@ -246,19 +266,31 @@ void imageprocess::calculoGradientes(unsigned char* imagen, Gradient* gradientes
                             "cmp $1, %%r12d;"
                             "jle calculoGradientesJLoop;"
 
+                        "mov %2, %%eax;"
+                        //"mov $0, %%rdx;"
+                        "mul %%ebx;"
+                        //"shl $16, %%rdx;"
+                        //"add %%rdx, %%rax;"
+                        "mov $0, %%r14;"
+                        "mov %%ecx, %%r14d;"
+                        "add %%eax, %%r14d;" // offsetPixel = y*W + x
 
-                        "inc %%ebx;"
-                        "cmp %2, %%ebx;"
-                        "jb calculoGradientesYLoop;"
-                "inc %%ecx;"
-                "cmp %3, %%ecx;"
-                "jb calculoGradientesXLoop;"
+                        "mov %%r10b, (%%rdi, %%r14, 8);"
+                        "mov %%r11b, 4(%%rdi, %%r14, 8);"
+
+                        "inc %%ecx;"
+                        "cmp %2, %%ecx;"
+                        "jb calculoGradientesXLoop;"
+
+                "inc %%ebx;"
+                "cmp %3, %%ebx;"
+                "jb calculoGradientesYLoop;"
 
         ";"
 
         :
         : "m" (imagen), "m" (gradientes), "m" (W), "m" (H), "m" (sobel_x), "m" (sobel_y)
-        : "rax", "%rbx", "%rcx", "rdx", "%rsi", "%rdi", "%r8", "%r9", "%r10", "%r11", "%r12", "%r13", "memory"
+        : "rax", "%rbx", "%rcx", "%rdx", "%rsi", "%rdi", "%r8", "%r9", "%r10", "%r11", "%r12", "%r13", "%r14", "memory"
 
     );
 
